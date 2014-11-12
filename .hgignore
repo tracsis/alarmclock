@@ -1,0 +1,8 @@
+dist
+.*\.swp
+.*\.tix
+cabal-dev
+.*\.dat
+syntax: glob
+cabal.sandbox.config
+.cabal-sandbox
