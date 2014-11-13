@@ -81,13 +81,13 @@ runAlarmClock wakeUpTimeVar wakeUpAction = alarmNotSet
     t <- getCurrentTime
     let dt = diffUTCTime wakeUpTime t
     if dt < 0 then wakeUpAction >> alarmNotSet
-              else do
-      let dt_usec_int = fromIntegral $ min maxDelay $ ceiling $ 1000000 * dt
-      timeout dt_usec_int (takeMVar wakeUpTimeVar) >>= \case
-        Nothing -> do
-          t' <- getCurrentTime
-          if t' < wakeUpTime then alarmSet wakeUpTime else wakeUpAction >> alarmNotSet
-        Just wakeUpTime' -> alarmSet (min wakeUpTime wakeUpTime')
+              else timeout (fromIntegral $ min maxDelay $ ceiling $ 1000000 * dt)
+                           (takeMVar wakeUpTimeVar) >>= \case
+          Nothing -> do
+            t' <- getCurrentTime
+            if t' < wakeUpTime then alarmSet wakeUpTime else wakeUpAction >> alarmNotSet
+
+          Just wakeUpTime' -> alarmSet (min wakeUpTime wakeUpTime')
 
 maxDelay :: Integer
 maxDelay = fromIntegral (maxBound :: Int)
