@@ -14,7 +14,7 @@
 
 -}
 
-module Control.Concurrency.AlarmClock where
+module Control.Concurrent.AlarmClock where
 
 import Control.Concurrent
 import Control.Exception
