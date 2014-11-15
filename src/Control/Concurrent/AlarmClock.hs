@@ -50,9 +50,7 @@ newAlarmClock
   -> IO AlarmClock
 newAlarmClock onWakeUp = do
   ac <- atomically $ AlarmClock <$> newTBMQueue 1
-  void $ mask $ \restore -> forkIO $ runAlarmClock ac $ restore onWakeUp >>= \case
-    Nothing -> return ()
-    Just wakeUpTime -> setAlarm ac wakeUpTime
+  void $ mask $ \restore -> forkIO $ runAlarmClock ac $ restore onWakeUp
   return ac
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If a wakeup is in
@@ -76,7 +74,7 @@ readNextAlarmSetting :: AlarmClock -> IO AlarmSetting
 readNextAlarmSetting (AlarmClock q)
   = maybe AlarmDestroyed AlarmSet <$> atomically (readTBMQueue q)
 
-runAlarmClock :: AlarmClock -> IO () -> IO ()
+runAlarmClock :: AlarmClock -> IO (Maybe UTCTime) -> IO ()
 runAlarmClock ac wakeUpAction = go AlarmNotSet
   where
   go AlarmDestroyed = return ()
@@ -95,7 +93,9 @@ runAlarmClock ac wakeUpAction = go AlarmNotSet
                   else actAndContinue
               Just newSetting -> go newSetting
 
-  actAndContinue = forkIO wakeUpAction >> go AlarmNotSet
+  act = wakeUpAction >>= maybe (return ()) (setAlarm ac)
+
+  actAndContinue = forkIO act >> go AlarmNotSet
 
 maxDelay :: Integer
 maxDelay = fromIntegral (maxBound :: Int)
