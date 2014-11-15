@@ -27,14 +27,17 @@ module Control.Concurrent.AlarmClock
   , setAlarmNow
   ) where
 
+import Control.Applicative
 import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TBMQueue
 import Control.Exception
 import Control.Monad
-import System.Timeout
 import Data.Time
+import System.Timeout
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
-data AlarmClock = AlarmClock (MVar UTCTime) ThreadId
+newtype AlarmClock = AlarmClock (TBMQueue UTCTime)
 
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
 no wakeup time set: you must call 'setAlarm' for anything else to happen. -}
@@ -46,48 +49,53 @@ newAlarmClock
     -- been called with a time that is still in the future.
   -> IO AlarmClock
 newAlarmClock onWakeUp = do
-  mv <- newEmptyMVar
-  tid <- mask $ \restore -> forkIO $ runAlarmClock mv $ void $ forkIO $
-    restore onWakeUp >>= \case Nothing -> return ()
-                               Just wakeUpTime -> setAlarmVar mv wakeUpTime 
-  return $ AlarmClock mv tid
+  ac <- atomically $ AlarmClock <$> newTBMQueue 1
+  void $ mask $ \restore -> forkIO $ runAlarmClock ac $ restore onWakeUp >>= \case
+    Nothing -> return ()
+    Just wakeUpTime -> setAlarm ac wakeUpTime
+  return ac
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If a wakeup is in
 progress then it will run to completion. -}
 destroyAlarmClock :: AlarmClock -> IO ()
-destroyAlarmClock (AlarmClock _ tid) = killThread tid
-
-setAlarmVar :: MVar UTCTime -> UTCTime -> IO ()
-setAlarmVar mv wakeUpTime = tryTakeMVar mv >>= \case
-  Nothing          -> putMVar mv      wakeUpTime
-  Just wakeUpTime' -> putMVar mv (min wakeUpTime wakeUpTime')
+destroyAlarmClock (AlarmClock q) = atomically $ closeTBMQueue q
 
 {-| Make the 'AlarmClock' go off at (or shortly after) the given time.  This
 can be called more than once; in which case, the alarm will go off at the
 earliest given time. -}
 setAlarm :: AlarmClock -> UTCTime -> IO ()
-setAlarm (AlarmClock mv _) = setAlarmVar mv
+setAlarm (AlarmClock q) = atomically . writeTBMQueue q
 
 {-| Make the 'AlarmClock' go off right now. -}
 setAlarmNow :: AlarmClock -> IO ()
 setAlarmNow alarm = getCurrentTime >>= setAlarm alarm
 
-runAlarmClock :: MVar UTCTime -> IO () -> IO ()
-runAlarmClock wakeUpTimeVar wakeUpAction = alarmNotSet
+data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
+
+readNextAlarmSetting :: AlarmClock -> IO AlarmSetting
+readNextAlarmSetting (AlarmClock q)
+  = maybe AlarmDestroyed AlarmSet <$> atomically (readTBMQueue q)
+
+runAlarmClock :: AlarmClock -> IO () -> IO ()
+runAlarmClock ac wakeUpAction = go AlarmNotSet
   where
-  alarmNotSet = takeMVar wakeUpTimeVar >>= alarmSet
+  go AlarmDestroyed = return ()
+  go AlarmNotSet    = readNextAlarmSetting ac >>= go
+  go (AlarmSet wakeUpTime) = do
+    dt <- diffUTCTime wakeUpTime <$> getCurrentTime
+    if dt < 0
+      then actAndContinue
+      else timeout (fromIntegral $ min maxDelay $ ceiling $ 1000000 * dt)
+                   (readNextAlarmSetting ac)
+            >>= \case
+              Nothing -> do
+                t' <- getCurrentTime
+                if t' < wakeUpTime
+                  then go (AlarmSet wakeUpTime)
+                  else actAndContinue
+              Just newSetting -> go newSetting
 
-  alarmSet wakeUpTime = do
-    t <- getCurrentTime
-    let dt = diffUTCTime wakeUpTime t
-    if dt < 0 then wakeUpAction >> alarmNotSet
-              else timeout (fromIntegral $ min maxDelay $ ceiling $ 1000000 * dt)
-                           (takeMVar wakeUpTimeVar) >>= \case
-          Nothing -> do
-            t' <- getCurrentTime
-            if t' < wakeUpTime then alarmSet wakeUpTime else wakeUpAction >> alarmNotSet
-
-          Just wakeUpTime' -> alarmSet (min wakeUpTime wakeUpTime')
+  actAndContinue = forkIO wakeUpAction >> go AlarmNotSet
 
 maxDelay :: Integer
 maxDelay = fromIntegral (maxBound :: Int)
