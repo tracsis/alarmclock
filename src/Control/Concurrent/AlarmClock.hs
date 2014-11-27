@@ -87,7 +87,7 @@ runAlarmClock ac wakeUpAction = loop
 
   wakeNoLaterThan wakeUpTime = do
     dt <- diffUTCTime wakeUpTime <$> getCurrentTime
-    if dt < 0
+    if dt <= 0
       then actAndContinue
       else timeout (fromIntegral $ min maxDelay $ ceiling $ 1000000 * dt)
                    (readNextAlarmSetting ac)
