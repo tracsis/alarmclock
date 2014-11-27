@@ -12,7 +12,7 @@ run immediately. When the action runs, it clears all future alarms; the action
 can itself return the time at which it should run again.
 
 To perform time-based cache expiry, create an 'AlarmClock' whose action flushes
-any stale entries from the cache and returns the next time that an entry will
-expire. If the cache contains no entries that will expire, return 'Nothing'
-from the reaper action. When expiring entries are added to the cache, call
-'setAlarm' to ensure that they will be reaped.
+any stale entries from the cache and then calls `setAlarm` for the next time
+that an entry will expire (if there are any). When expiring entries are added
+to the cache, call 'setAlarm' to ensure that they will expire in a timely
+fashion.
