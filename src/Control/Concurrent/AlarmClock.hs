@@ -49,7 +49,7 @@ newAlarmClock
 newAlarmClock onWakeUp = do
   joinVar <- atomically $ newTVar False
   ac <- atomically $ AlarmClock (waitOn joinVar) <$> newTVar AlarmNotSet
-  void $ mask $ \restore -> forkIO $ runAlarmClock ac (restore $ onWakeUp ac) `finally` atomically (writeTVar joinVar True)
+  void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` atomically (writeTVar joinVar True)
   return ac
 
 waitOn :: TVar Bool -> IO ()
