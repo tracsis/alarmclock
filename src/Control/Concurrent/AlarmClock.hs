@@ -36,7 +36,7 @@ import Data.Time
 import System.Timeout
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
-newtype AlarmClock = AlarmClock (TVar AlarmSetting)
+data AlarmClock = AlarmClock (IO ()) (TVar AlarmSetting)
 
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
 no wakeup time set: you must call 'setAlarm' for anything else to happen. -}
@@ -47,20 +47,24 @@ newAlarmClock
     -- the alarm has gone off to cause it to go off again.
   -> IO AlarmClock
 newAlarmClock onWakeUp = do
-  ac <- atomically $ AlarmClock <$> newTVar AlarmNotSet
-  void $ mask $ \restore -> forkIO $ runAlarmClock ac $ restore $ onWakeUp ac
+  joinVar <- atomically $ newTVar False
+  ac <- atomically $ AlarmClock (waitOn joinVar) <$> newTVar AlarmNotSet
+  void $ mask $ \restore -> forkIO $ runAlarmClock ac (restore $ onWakeUp ac) `finally` atomically (writeTVar joinVar True)
   return ac
 
-{-| Destroy the 'AlarmClock' so no further alarms will occur. If a wakeup is in
-progress then it will run to completion. -}
+waitOn :: TVar Bool -> IO ()
+waitOn v = atomically $ readTVar v >>= \case True -> return (); False -> retry
+
+{-| Destroy the 'AlarmClock' so no further alarms will occur. If the alarm is currently going off
+then this will block until the action is finished. -}
 destroyAlarmClock :: AlarmClock -> IO ()
-destroyAlarmClock (AlarmClock q) = atomically $ writeTVar q AlarmDestroyed
+destroyAlarmClock (AlarmClock j q) = atomically (writeTVar q AlarmDestroyed) >> j
 
 {-| Make the 'AlarmClock' go off at (or shortly after) the given time.  This
 can be called more than once; in which case, the alarm will go off at the
 earliest given time. -}
 setAlarm :: AlarmClock -> UTCTime -> IO ()
-setAlarm (AlarmClock q) t = atomically $ modifyTVar' q $ \case
+setAlarm (AlarmClock _ q) t = atomically $ modifyTVar' q $ \case
   AlarmDestroyed -> AlarmDestroyed
   AlarmNotSet -> AlarmSet t
   AlarmSet t' -> AlarmSet $! min t t'
@@ -72,7 +76,7 @@ setAlarmNow alarm = getCurrentTime >>= setAlarm alarm
 data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
 
 readNextAlarmSetting :: AlarmClock -> IO (Maybe UTCTime)
-readNextAlarmSetting (AlarmClock q) = atomically $ readTVar q >>= \case
+readNextAlarmSetting (AlarmClock _ q) = atomically $ readTVar q >>= \case
   AlarmNotSet    -> retry
   AlarmDestroyed -> return Nothing
   AlarmSet t     -> writeTVar q AlarmNotSet >> return (Just t)

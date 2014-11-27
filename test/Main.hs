@@ -18,11 +18,14 @@ printWithTime s = do
 alarmAction :: IORef Bool -> AlarmClock -> IO ()
 alarmAction v ac = do
   printWithTime "alarm went off"
+  threadDelay 3000000
   readIORef v >>= \case
     False -> return ()
     True -> do
       t <- addUTCTime 5 <$> getCurrentTime
       setAlarmLog ac t
+  threadDelay 3000000
+  printWithTime "alarm action finished"
 
 setAlarmLog :: AlarmClock -> UTCTime -> IO ()
 setAlarmLog ac t = do
