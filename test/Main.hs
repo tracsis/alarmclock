@@ -15,17 +15,14 @@ printWithTime s = do
   t <- getCurrentTime
   putStrLn $ printf "%-32s: %s" (show t) s
 
-alarmAction :: IORef Bool -> IO (Maybe UTCTime)
-alarmAction v = do
+alarmAction :: IORef Bool -> AlarmClock -> IO ()
+alarmAction v ac = do
   printWithTime "alarm went off"
   readIORef v >>= \case
-    False -> do
-      printWithTime "not resetting alarm"
-      return Nothing
+    False -> return ()
     True -> do
       t <- addUTCTime 5 <$> getCurrentTime
-      printWithTime $ printf "alarm reset for %s" $ show t
-      return $ Just t
+      setAlarmLog ac t
 
 setAlarmLog :: AlarmClock -> UTCTime -> IO ()
 setAlarmLog ac t = do

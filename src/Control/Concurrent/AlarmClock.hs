@@ -42,15 +42,14 @@ newtype AlarmClock = AlarmClock (TBMQueue UTCTime)
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
 no wakeup time set: you must call 'setAlarm' for anything else to happen. -}
 newAlarmClock
-  :: IO (Maybe UTCTime)
-    -- ^ Action to run when the alarm goes off. The return value, if 'Just', is
-    -- used as the next wakeup time. If 'Nothing', the alarm will not wake up again
-    -- until 'setAlarm' or 'setAlarmNow' is called, even if 'setAlarm' has previously
-    -- been called with a time that is still in the future.
+  :: (AlarmClock -> IO ())
+    -- ^ Action to run when the alarm goes off. The action is provided the alarm clock
+    -- so it can set a new alarm if desired. Note that `setAlarm` must be called once
+    -- the alarm has gone off to cause it to go off again.
   -> IO AlarmClock
 newAlarmClock onWakeUp = do
   ac <- atomically $ AlarmClock <$> newTBMQueue 1
-  void $ mask $ \restore -> forkIO $ runAlarmClock ac $ restore onWakeUp
+  void $ mask $ \restore -> forkIO $ runAlarmClock ac $ restore $ onWakeUp ac
   return ac
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If a wakeup is in
@@ -74,7 +73,7 @@ readNextAlarmSetting :: AlarmClock -> IO AlarmSetting
 readNextAlarmSetting (AlarmClock q)
   = maybe AlarmDestroyed AlarmSet <$> atomically (readTBMQueue q)
 
-runAlarmClock :: AlarmClock -> IO (Maybe UTCTime) -> IO ()
+runAlarmClock :: AlarmClock -> IO () -> IO ()
 runAlarmClock ac wakeUpAction = go AlarmNotSet
   where
   go AlarmDestroyed = return ()
@@ -93,9 +92,7 @@ runAlarmClock ac wakeUpAction = go AlarmNotSet
                   else actAndContinue
               Just newSetting -> go newSetting
 
-  act = wakeUpAction >>= maybe (return ()) (setAlarm ac)
-
-  actAndContinue = forkIO act >> go AlarmNotSet
+  actAndContinue = forkIO wakeUpAction >> go AlarmNotSet
 
 maxDelay :: Integer
 maxDelay = fromIntegral (maxBound :: Int)
