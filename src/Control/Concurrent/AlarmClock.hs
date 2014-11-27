@@ -99,7 +99,7 @@ runAlarmClock ac wakeUpAction = loop
                   else actAndContinue
               Just newSetting -> go newSetting
 
-  actAndContinue = forkIO wakeUpAction >> loop
+  actAndContinue = wakeUpAction >> loop
 
 maxDelay :: Integer
 maxDelay = fromIntegral (maxBound :: Int)
