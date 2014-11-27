@@ -63,7 +63,7 @@ setAlarm :: AlarmClock -> UTCTime -> IO ()
 setAlarm (AlarmClock q) t = atomically $ modifyTVar' q $ \case
   AlarmDestroyed -> AlarmDestroyed
   AlarmNotSet -> AlarmSet t
-  AlarmSet t' -> AlarmSet (min t t')
+  AlarmSet t' -> AlarmSet $! min t t'
 
 {-| Make the 'AlarmClock' go off right now. -}
 setAlarmNow :: AlarmClock -> IO ()
