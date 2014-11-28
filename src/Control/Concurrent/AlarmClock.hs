@@ -93,10 +93,8 @@ isAlarmSet = atomically . isAlarmSetSTM
 
 {-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
 isAlarmSetSTM :: AlarmClock -> STM Bool
-isAlarmSetSTM AlarmClock{..} = do
-  readTVar acNewSetting >>= \case
-    AlarmNotSet -> readTVar acIsSet
-    _           -> return True
+isAlarmSetSTM AlarmClock{..} = readTVar acNewSetting
+  >>= \case { AlarmNotSet -> readTVar acIsSet; _ -> return True }
 
 data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
 
