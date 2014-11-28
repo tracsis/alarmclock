@@ -26,6 +26,7 @@ module Control.Concurrent.AlarmClock
   , destroyAlarmClock
   , setAlarm
   , setAlarmNow
+  , isAlarmSet
   ) where
 
 import Control.Applicative
@@ -40,6 +41,7 @@ import System.Timeout
 data AlarmClock = AlarmClock
   { acWaitForExit :: IO ()
   , acNewSetting  :: TVar AlarmSetting
+  , acIsSet       :: TVar Bool
   }
 
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
@@ -52,7 +54,7 @@ newAlarmClock
   -> IO AlarmClock
 newAlarmClock onWakeUp = do
   joinVar <- atomically $ newTVar False
-  ac <- atomically $ AlarmClock (waitOn joinVar) <$> newTVar AlarmNotSet
+  ac <- atomically $ AlarmClock (waitOn joinVar) <$> newTVar AlarmNotSet <*> newTVar False
   void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` atomically (writeTVar joinVar True)
   return ac
 
@@ -77,13 +79,23 @@ setAlarm AlarmClock{..} t = atomically $ modifyTVar' acNewSetting $ \case
 setAlarmNow :: AlarmClock -> IO ()
 setAlarmNow alarm = getCurrentTime >>= setAlarm alarm
 
+{-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
+isAlarmSet :: AlarmClock -> IO Bool
+isAlarmSet AlarmClock{..} = atomically $ do
+  readTVar acNewSetting >>= \case
+    AlarmNotSet -> readTVar acIsSet
+    _           -> return True
+
 data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
 
 readNextAlarmSetting :: AlarmClock -> IO (Maybe UTCTime)
 readNextAlarmSetting AlarmClock{..} = atomically $ readTVar acNewSetting >>= \case
   AlarmNotSet    -> retry
   AlarmDestroyed -> return Nothing
-  AlarmSet t     -> writeTVar acNewSetting AlarmNotSet >> return (Just t)
+  AlarmSet t     -> do
+    writeTVar acNewSetting AlarmNotSet
+    writeTVar acIsSet True
+    return $ Just t
 
 runAlarmClock :: AlarmClock -> IO () -> IO ()
 runAlarmClock ac wakeUpAction = loop
@@ -107,7 +119,10 @@ runAlarmClock ac wakeUpAction = loop
                   else actAndContinue
               Just newSetting -> go newSetting
 
-  actAndContinue = wakeUpAction >> loop
+  actAndContinue = do
+    atomically $ writeTVar (acIsSet ac) False
+    wakeUpAction
+    loop
 
 maxDelay :: Integer
 maxDelay = fromIntegral (maxBound :: Int)
