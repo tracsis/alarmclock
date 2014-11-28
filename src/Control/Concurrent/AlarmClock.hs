@@ -25,8 +25,10 @@ module Control.Concurrent.AlarmClock
   , newAlarmClock
   , destroyAlarmClock
   , setAlarm
+  , setAlarmSTM
   , setAlarmNow
   , isAlarmSet
+  , isAlarmSetSTM
   ) where
 
 import Control.Applicative
@@ -70,7 +72,13 @@ destroyAlarmClock AlarmClock{..} = atomically (writeTVar acNewSetting AlarmDestr
 can be called more than once; in which case, the alarm will go off at the
 earliest given time. -}
 setAlarm :: AlarmClock -> UTCTime -> IO ()
-setAlarm AlarmClock{..} t = atomically $ modifyTVar' acNewSetting $ \case
+setAlarm ac t = atomically $ setAlarmSTM ac t
+
+{-| Make the 'AlarmClock' go off at (or shortly after) the given time.  This
+can be called more than once; in which case, the alarm will go off at the
+earliest given time. -}
+setAlarmSTM :: AlarmClock -> UTCTime -> STM ()
+setAlarmSTM AlarmClock{..} t = modifyTVar' acNewSetting $ \case
   AlarmDestroyed -> AlarmDestroyed
   AlarmNotSet    -> AlarmSet t
   AlarmSet t'    -> AlarmSet $! min t t'
@@ -81,7 +89,11 @@ setAlarmNow alarm = getCurrentTime >>= setAlarm alarm
 
 {-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
 isAlarmSet :: AlarmClock -> IO Bool
-isAlarmSet AlarmClock{..} = atomically $ do
+isAlarmSet = atomically . isAlarmSetSTM
+
+{-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
+isAlarmSetSTM :: AlarmClock -> STM Bool
+isAlarmSetSTM AlarmClock{..} = do
   readTVar acNewSetting >>= \case
     AlarmNotSet -> readTVar acIsSet
     _           -> return True
