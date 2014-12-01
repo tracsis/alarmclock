@@ -31,12 +31,12 @@ module Control.Concurrent.AlarmClock
   , isAlarmSetSTM
   ) where
 
-import Control.Applicative
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Exception
-import Control.Monad
-import Data.Time
+import Control.Applicative ((<$>), (<*>))
+import Control.Concurrent (forkIO)
+import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
+import Control.Exception (finally)
+import Control.Monad (void)
+import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import Control.Concurrent.Timeout (timeout)
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
