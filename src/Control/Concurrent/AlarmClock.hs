@@ -34,10 +34,10 @@ module Control.Concurrent.AlarmClock
 import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
+import Control.Concurrent.Timeout (timeout)
 import Control.Exception (finally)
 import Control.Monad (void)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
-import Control.Concurrent.Timeout (timeout)
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock = AlarmClock
