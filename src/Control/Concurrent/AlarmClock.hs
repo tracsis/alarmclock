@@ -37,7 +37,7 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.Time
-import System.Timeout
+import Control.Concurrent.Timeout (timeout)
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock = AlarmClock
@@ -119,20 +119,13 @@ runAlarmClock ac wakeUpAction = loop
     dt <- diffUTCTime wakeUpTime <$> getCurrentTime
     if dt <= 0
       then actAndContinue
-      else timeout (fromIntegral $ min maxDelay $ ceiling $ 1000000 * dt)
+      else timeout (ceiling $ 1000000 * dt)
                    (readNextAlarmSetting ac)
             >>= \case
-              Nothing -> do
-                t' <- getCurrentTime
-                if t' < wakeUpTime
-                  then wakeNoLaterThan wakeUpTime
-                  else actAndContinue
+              Nothing -> actAndContinue
               Just newSetting -> go newSetting
 
   actAndContinue = do
     atomically $ writeTVar (acIsSet ac) False
     wakeUpAction
     loop
-
-maxDelay :: Integer
-maxDelay = fromIntegral (maxBound :: Int)
