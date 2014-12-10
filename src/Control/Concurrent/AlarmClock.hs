@@ -38,6 +38,7 @@ import Control.Concurrent.Timeout (timeout)
 import Control.Exception (finally)
 import Control.Monad (void)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
+import GHC.Conc (labelThread, myThreadId)
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock = AlarmClock
@@ -107,8 +108,11 @@ readNextAlarmSetting AlarmClock{..} = atomically $ readTVar acNewSetting >>= \ca
     writeTVar acIsSet True
     return $ Just t
 
+labelMyThread :: String -> IO ()
+labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
+
 runAlarmClock :: AlarmClock -> IO () -> IO ()
-runAlarmClock ac wakeUpAction = loop
+runAlarmClock ac wakeUpAction = labelMyThread "alarmclock" >> loop
   where
   loop = readNextAlarmSetting ac >>= go
 
