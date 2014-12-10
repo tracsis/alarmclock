@@ -120,10 +120,10 @@ runAlarmClock ac wakeUpAction = labelMyThread "alarmclock" >> loop
   go (Just wakeUpTime) = wakeNoLaterThan wakeUpTime
 
   wakeNoLaterThan wakeUpTime = do
-    dt <- diffUTCTime wakeUpTime <$> getCurrentTime
+    dt <- ceiling <$> (1000000 *) <$> diffUTCTime wakeUpTime <$> getCurrentTime
     if dt <= 0
       then actAndContinue
-      else timeout (ceiling $ 1000000 * dt)
+      else timeout dt
                    (readNextAlarmSetting ac)
             >>= \case
               Nothing -> actAndContinue
