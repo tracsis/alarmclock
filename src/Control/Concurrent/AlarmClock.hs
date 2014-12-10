@@ -33,7 +33,7 @@ module Control.Concurrent.AlarmClock
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent (forkIO)
-import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
+import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar', check)
 import Control.Concurrent.Timeout (timeout)
 import Control.Exception (finally)
 import Control.Monad (void)
