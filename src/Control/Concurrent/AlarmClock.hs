@@ -62,7 +62,7 @@ newAlarmClock onWakeUp = do
   return ac
 
 waitOn :: TVar Bool -> IO ()
-waitOn v = atomically $ readTVar v >>= \case True -> return (); False -> retry
+waitOn v = atomically $ readTVar v >>= check
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If the alarm is currently going off
 then this will block until the action is finished. -}
