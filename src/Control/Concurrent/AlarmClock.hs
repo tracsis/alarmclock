@@ -32,8 +32,8 @@ module Control.Concurrent.AlarmClock
   ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Concurrent (forkIO)
-import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar', check)
+import Control.Concurrent (forkIO, newEmptyMVar, readMVar, putMVar)
+import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
 import Control.Concurrent.Timeout (timeout)
 import Control.Exception (finally)
 import Control.Monad (void)
@@ -56,13 +56,10 @@ newAlarmClock
     -- the alarm has gone off to cause it to go off again.
   -> IO AlarmClock
 newAlarmClock onWakeUp = do
-  joinVar <- atomically $ newTVar False
-  ac <- atomically $ AlarmClock (waitOn joinVar) <$> newTVar AlarmNotSet <*> newTVar False
-  void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` atomically (writeTVar joinVar True)
+  joinVar <- newEmptyMVar
+  ac <- atomically $ AlarmClock (readMVar joinVar) <$> newTVar AlarmNotSet <*> newTVar False
+  void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` putMVar joinVar ()
   return ac
-
-waitOn :: TVar Bool -> IO ()
-waitOn v = atomically $ readTVar v >>= check
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If the alarm is currently going off
 then this will block until the action is finished. -}
