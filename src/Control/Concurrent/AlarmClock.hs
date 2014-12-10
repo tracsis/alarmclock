@@ -99,22 +99,21 @@ isAlarmSetSTM AlarmClock{..} = readTVar acNewSetting
 
 data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
 
-readNextAlarmSetting :: AlarmClock -> IO (Maybe UTCTime)
-readNextAlarmSetting AlarmClock{..} = atomically $ readTVar acNewSetting >>= \case
-  AlarmNotSet    -> retry
-  AlarmDestroyed -> return Nothing
-  AlarmSet t     -> do
-    writeTVar acNewSetting AlarmNotSet
-    writeTVar acIsSet True
-    return $ Just t
-
 labelMyThread :: String -> IO ()
 labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
 
 runAlarmClock :: AlarmClock -> IO () -> IO ()
-runAlarmClock ac wakeUpAction = labelMyThread "alarmclock" >> loop
+runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   where
-  loop = readNextAlarmSetting ac >>= go
+  loop = readNextSetting >>= go
+
+  readNextSetting = atomically $ readTVar acNewSetting >>= \case
+    AlarmNotSet    -> retry
+    AlarmDestroyed -> return Nothing
+    AlarmSet t     -> do
+      writeTVar acNewSetting AlarmNotSet
+      writeTVar acIsSet True
+      return $ Just t
 
   go Nothing           = return ()
   go (Just wakeUpTime) = wakeNoLaterThan wakeUpTime
@@ -123,13 +122,11 @@ runAlarmClock ac wakeUpAction = labelMyThread "alarmclock" >> loop
     dt <- ceiling <$> (1000000 *) <$> diffUTCTime wakeUpTime <$> getCurrentTime
     if dt <= 0
       then actAndContinue
-      else timeout dt
-                   (readNextAlarmSetting ac)
-            >>= \case
-              Nothing -> actAndContinue
-              Just newSetting -> go newSetting
+      else timeout dt readNextSetting >>= \case
+            Nothing -> actAndContinue
+            Just newSetting -> go newSetting
 
   actAndContinue = do
-    atomically $ writeTVar (acIsSet ac) False
+    atomically $ writeTVar acIsSet False
     wakeUpAction
     loop
