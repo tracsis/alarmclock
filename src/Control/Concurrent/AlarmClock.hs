@@ -23,7 +23,9 @@ fashion.
 module Control.Concurrent.AlarmClock
   ( AlarmClock()
   , newAlarmClock
+  , newAlarmClock'
   , destroyAlarmClock
+  , withAlarmClock
   , setAlarm
   , setAlarmSTM
   , setAlarmNow
