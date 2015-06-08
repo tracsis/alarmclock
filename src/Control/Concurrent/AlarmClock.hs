@@ -79,8 +79,8 @@ then this will block until the action is finished. -}
 destroyAlarmClock :: AlarmClock -> IO ()
 destroyAlarmClock AlarmClock{..} = atomically (writeTVar acNewSetting AlarmDestroyed) >> acWaitForExit
 
-{-| 'withAlarmClock onWakeUp inner' runs 'inner' with a new 'AlarmClock' which
-is destroyed when 'inner' exits. -}
+{-| The action @withAlarmClock onWakeUp inner@ runs @inner@ with a new 'AlarmClock' which
+is destroyed when @inner@ exits. -}
 withAlarmClock :: (AlarmClock -> UTCTime -> IO ()) -> (AlarmClock -> IO a) -> IO a
 withAlarmClock onWakeUp inner = bracket (newAlarmClock' onWakeUp) destroyAlarmClock inner
 
