@@ -10,7 +10,7 @@ to achieve low-latency without lots of computational overhead.
 The alarm can be set multiple times, and in this case the alarm will go off at
 the earliest requested time. If the alarm is set in the past, the action will
 run immediately. When the action runs, it clears all future alarms; the action
-can itself return the time at which it should run again.
+can itself set the next alarm time.
 
 To perform time-based cache expiry, create an 'AlarmClock' whose action flushes
 any stale entries from the cache and then calls `setAlarm` for the next time
