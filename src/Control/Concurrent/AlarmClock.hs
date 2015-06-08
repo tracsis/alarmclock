@@ -55,7 +55,18 @@ newAlarmClock
     -- so it can set a new alarm if desired. Note that `setAlarm` must be called once
     -- the alarm has gone off to cause it to go off again.
   -> IO AlarmClock
-newAlarmClock onWakeUp = do
+newAlarmClock onWakeUp = newAlarmClock' $ const . onWakeUp
+
+{-| Create a new 'AlarmClock' that runs the given action. Initially, there is
+no wakeup time set: you must call 'setAlarm' for anything else to happen. -}
+newAlarmClock'
+  :: (AlarmClock -> UTCTime -> IO ())
+    -- ^ Action to run when the alarm goes off. The action is provided the alarm clock
+    -- so it can set a new alarm if desired, and the current time.
+    -- Note that `setAlarm` must be called once the alarm has gone off to cause
+    -- it to go off again.
+  -> IO AlarmClock
+newAlarmClock' onWakeUp = do
   joinVar <- newEmptyMVar
   ac <- atomically $ AlarmClock (readMVar joinVar) <$> newTVar AlarmNotSet <*> newTVar False
   void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` putMVar joinVar ()
@@ -99,7 +110,7 @@ data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
 labelMyThread :: String -> IO ()
 labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
 
-runAlarmClock :: AlarmClock -> IO () -> IO ()
+runAlarmClock :: AlarmClock -> (UTCTime -> IO ()) -> IO ()
 runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   where
   loop = readNextSetting >>= go
@@ -116,14 +127,15 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   go (Just wakeUpTime) = wakeNoLaterThan wakeUpTime
 
   wakeNoLaterThan wakeUpTime = do
-    dt <- ceiling <$> (1000000 *) <$> diffUTCTime wakeUpTime <$> getCurrentTime
+    currentTime <- getCurrentTime
+    let dt = ceiling $ (1000000 *) $ diffUTCTime wakeUpTime currentTime
     if dt <= 0
-      then actAndContinue
+      then actAndContinue currentTime
       else timeout dt readNextSetting >>= \case
-            Nothing -> actAndContinue
+            Nothing -> actAndContinue currentTime
             Just newSetting -> go newSetting
 
-  actAndContinue = do
+  actAndContinue currentTime = do
     atomically $ writeTVar acIsSet False
-    wakeUpAction
+    wakeUpAction currentTime
     loop
