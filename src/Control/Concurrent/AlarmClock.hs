@@ -133,7 +133,7 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
       Nothing -> actAndContinue currentTime
       Just newSetting -> go newSetting
 
-  -- Times out immediately if the duration is negative (unlike 'timeout' which waits forever)
+  -- Times out immediately if the duration is nonpositive (unlike 'timeout' which waits forever)
   safeTimeout dt action
     | dt > 0    = timeout dt action
     | otherwise = return Nothing
