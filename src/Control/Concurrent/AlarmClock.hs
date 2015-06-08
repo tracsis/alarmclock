@@ -35,7 +35,7 @@ import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent (forkIO, newEmptyMVar, readMVar, putMVar)
 import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
 import Control.Concurrent.Timeout (timeout)
-import Control.Exception (finally)
+import Control.Exception (finally, bracket)
 import Control.Monad (void)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import GHC.Conc (labelThread, myThreadId)
@@ -76,6 +76,11 @@ newAlarmClock' onWakeUp = do
 then this will block until the action is finished. -}
 destroyAlarmClock :: AlarmClock -> IO ()
 destroyAlarmClock AlarmClock{..} = atomically (writeTVar acNewSetting AlarmDestroyed) >> acWaitForExit
+
+{-| 'withAlarmClock onWakeUp inner' runs 'inner' with a new 'AlarmClock' which
+is destroyed when 'inner' exits. -}
+withAlarmClock :: (AlarmClock -> UTCTime -> IO ()) -> (AlarmClock -> IO a) -> IO a
+withAlarmClock onWakeUp inner = bracket (newAlarmClock' onWakeUp) destroyAlarmClock inner
 
 {-| Make the 'AlarmClock' go off at (or shortly after) the given time.  This
 can be called more than once; in which case, the alarm will go off at the
