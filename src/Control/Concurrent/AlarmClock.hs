@@ -137,7 +137,7 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
     currentTime <- getCurrentTime
     let dt = ceiling $ (1000000 *) $ diffUTCTime wakeUpTime currentTime
     safeTimeout dt readNextSetting >>= \case
-      Nothing -> actAndContinue currentTime
+      Nothing -> actAndContinue
       Just newSetting -> go newSetting
 
   -- Times out immediately if the duration is nonpositive (unlike 'timeout' which waits forever)
@@ -145,7 +145,7 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
     | dt > 0    = timeout dt action
     | otherwise = return Nothing
 
-  actAndContinue currentTime = do
+  actAndContinue = do
     atomically $ writeTVar acIsSet False
-    wakeUpAction currentTime
+    wakeUpAction =<< getCurrentTime
     loop
