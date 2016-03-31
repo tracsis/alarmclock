@@ -6,3 +6,4 @@ cabal-dev
 syntax: glob
 cabal.sandbox.config
 .cabal-sandbox
+.stack-work
