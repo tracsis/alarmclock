@@ -35,14 +35,13 @@ module Control.Concurrent.AlarmClock
   , MonotonicTime(..)
   ) where
 
-import           Control.Concurrent         (forkIO, newEmptyMVar, putMVar,
-                                             readMVar)
+import           Control.Concurrent.Async   (async, wait)
 import           Control.Concurrent.STM     (STM, TVar, atomically, modifyTVar',
                                              newTVarIO, readTVar, retry,
                                              writeTVar)
 import           Control.Concurrent.Timeout (timeout)
-import           Control.Exception          (bracket, finally)
-import           Control.Monad              (void)
+import           Control.Exception          (bracket)
+import           Control.Monad.Fix          (mfix)
 import           Data.Time                  (UTCTime, diffUTCTime,
                                              getCurrentTime)
 import           GHC.Conc                   (labelThread, myThreadId)
@@ -97,11 +96,9 @@ newAlarmClock'
     -- Note that `setAlarm` must be called once the alarm has gone off to cause
     -- it to go off again.
   -> IO (AlarmClock t)
-newAlarmClock' onWakeUp = do
-  joinVar <- newEmptyMVar
-  ac <- AlarmClock (readMVar joinVar) <$> newTVarIO AlarmNotSet <*> newTVarIO False
-  void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` putMVar joinVar ()
-  return ac
+newAlarmClock' onWakeUp = mfix $ \ac -> do
+  acAsync <- async $ runAlarmClock ac (onWakeUp ac)
+  AlarmClock (wait acAsync) <$> newTVarIO AlarmNotSet <*> newTVarIO False
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If the alarm is currently going off
 then this will block until the action is finished. -}

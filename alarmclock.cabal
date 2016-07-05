@@ -1,5 +1,5 @@
 name:                alarmclock
-version:             0.4.0.1
+version:             0.4.0.2
 synopsis:            Wake up and perform an action at a certain time.
 description:         Wake up and perform an action at a certain time.
 homepage:            https://bitbucket.org/davecturner/alarmclock
@@ -17,6 +17,7 @@ library
   build-depends:
       base >=4.8 && <4.10
     , stm
+    , async
     , time
     , clock
     , unbounded-delays
