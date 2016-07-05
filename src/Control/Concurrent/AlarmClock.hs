@@ -31,6 +31,8 @@ module Control.Concurrent.AlarmClock
   , setAlarmNow
   , isAlarmSet
   , isAlarmSetSTM
+  , TimeScale(..)
+  , MonotonicTime(..)
   ) where
 
 import           Control.Concurrent         (forkIO, newEmptyMVar, putMVar,
@@ -44,7 +46,9 @@ import           Control.Monad              (void)
 import           Data.Time                  (UTCTime, diffUTCTime,
                                              getCurrentTime)
 import           GHC.Conc                   (labelThread, myThreadId)
-import           System.Clock
+import           System.Clock               (Clock (Monotonic), TimeSpec,
+                                             diffTimeSpec, getTime,
+                                             timeSpecAsNanoSecs)
 
 class TimeScale t where
   getAbsoluteTime   :: IO t
@@ -55,6 +59,15 @@ instance TimeScale UTCTime where
   getAbsoluteTime        = getCurrentTime
   earlierOf              = min
   microsecondsDiff t1 t2 = ceiling $ (1000000 *) $ diffUTCTime t1 t2
+
+{-| Representation of system monotonic clock. #-}
+newtype MonotonicTime = MonotonicTime TimeSpec deriving (Show, Eq, Ord)
+
+instance TimeScale MonotonicTime where
+  getAbsoluteTime = MonotonicTime <$> getTime Monotonic
+  earlierOf       = min
+  microsecondsDiff (MonotonicTime t1) (MonotonicTime t2)
+                  = (`div` 1000) $ timeSpecAsNanoSecs $ diffTimeSpec t1 t2
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock t = AlarmClock
