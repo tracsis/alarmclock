@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE RecordWildCards #-}
 
 {-| Device for running an action at (i.e. shortly after) a certain time, which
@@ -33,13 +33,18 @@ module Control.Concurrent.AlarmClock
   , isAlarmSetSTM
   ) where
 
-import Control.Concurrent (forkIO, newEmptyMVar, readMVar, putMVar)
-import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
-import Control.Concurrent.Timeout (timeout)
-import Control.Exception (finally, bracket)
-import Control.Monad (void)
-import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
-import GHC.Conc (labelThread, myThreadId)
+import           Control.Concurrent         (forkIO, newEmptyMVar, putMVar,
+                                             readMVar)
+import           Control.Concurrent.STM     (STM, TVar, atomically, modifyTVar',
+                                             newTVar, readTVar, retry,
+                                             writeTVar)
+import           Control.Concurrent.Timeout (timeout)
+import           Control.Exception          (bracket, finally)
+import           Control.Monad              (void)
+import           Data.Time                  (UTCTime, diffUTCTime,
+                                             getCurrentTime)
+import           GHC.Conc                   (labelThread, myThreadId)
+import           System.Clock
 
 class TimeScale t where
   getAbsoluteTime   :: IO t
