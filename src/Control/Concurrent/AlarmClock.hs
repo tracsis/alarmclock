@@ -38,7 +38,7 @@ module Control.Concurrent.AlarmClock
 import           Control.Concurrent         (forkIO, newEmptyMVar, putMVar,
                                              readMVar)
 import           Control.Concurrent.STM     (STM, TVar, atomically, modifyTVar',
-                                             newTVar, readTVar, retry,
+                                             newTVarIO, readTVar, retry,
                                              writeTVar)
 import           Control.Concurrent.Timeout (timeout)
 import           Control.Exception          (bracket, finally)
@@ -99,7 +99,7 @@ newAlarmClock'
   -> IO (AlarmClock t)
 newAlarmClock' onWakeUp = do
   joinVar <- newEmptyMVar
-  ac <- atomically $ AlarmClock (readMVar joinVar) <$> newTVar AlarmNotSet <*> newTVar False
+  ac <- AlarmClock (readMVar joinVar) <$> newTVarIO AlarmNotSet <*> newTVarIO False
   void $ forkIO $ runAlarmClock ac (onWakeUp ac) `finally` putMVar joinVar ()
   return ac
 
