@@ -33,7 +33,6 @@ module Control.Concurrent.AlarmClock
   , isAlarmSetSTM
   ) where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent (forkIO, newEmptyMVar, readMVar, putMVar)
 import Control.Concurrent.STM (STM, atomically, retry, TVar, newTVar, writeTVar, readTVar, modifyTVar')
 import Control.Concurrent.Timeout (timeout)
@@ -42,32 +41,44 @@ import Control.Monad (void)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import GHC.Conc (labelThread, myThreadId)
 
+class TimeScale t where
+  getAbsoluteTime   :: IO t
+  microsecondsDiff  :: t -> t -> Integer
+  earlierOf         :: t -> t -> t
+
+instance TimeScale UTCTime where
+  getAbsoluteTime        = getCurrentTime
+  earlierOf              = min
+  microsecondsDiff t1 t2 = ceiling $ (1000000 *) $ diffUTCTime t1 t2
+
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
-data AlarmClock = AlarmClock
+data AlarmClock t = AlarmClock
   { acWaitForExit :: IO ()
-  , acNewSetting  :: TVar AlarmSetting
+  , acNewSetting  :: TVar (AlarmSetting t)
   , acIsSet       :: TVar Bool
   }
 
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
 no wakeup time set: you must call 'setAlarm' for anything else to happen. -}
 newAlarmClock
-  :: (AlarmClock -> IO ())
+  :: TimeScale t
+  => (AlarmClock t -> IO ())
     -- ^ Action to run when the alarm goes off. The action is provided the alarm clock
     -- so it can set a new alarm if desired. Note that `setAlarm` must be called once
     -- the alarm has gone off to cause it to go off again.
-  -> IO AlarmClock
+  -> IO (AlarmClock t)
 newAlarmClock onWakeUp = newAlarmClock' $ const . onWakeUp
 
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
 no wakeup time set: you must call 'setAlarm' for anything else to happen. -}
 newAlarmClock'
-  :: (AlarmClock -> UTCTime -> IO ())
+  :: TimeScale t
+  => (AlarmClock t -> t -> IO ())
     -- ^ Action to run when the alarm goes off. The action is provided the alarm clock
     -- so it can set a new alarm if desired, and the current time.
     -- Note that `setAlarm` must be called once the alarm has gone off to cause
     -- it to go off again.
-  -> IO AlarmClock
+  -> IO (AlarmClock t)
 newAlarmClock' onWakeUp = do
   joinVar <- newEmptyMVar
   ac <- atomically $ AlarmClock (readMVar joinVar) <$> newTVar AlarmNotSet <*> newTVar False
@@ -76,48 +87,50 @@ newAlarmClock' onWakeUp = do
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If the alarm is currently going off
 then this will block until the action is finished. -}
-destroyAlarmClock :: AlarmClock -> IO ()
+destroyAlarmClock :: AlarmClock t -> IO ()
 destroyAlarmClock AlarmClock{..} = atomically (writeTVar acNewSetting AlarmDestroyed) >> acWaitForExit
 
 {-| The action @withAlarmClock onWakeUp inner@ runs @inner@ with a new 'AlarmClock' which
 is destroyed when @inner@ exits. -}
-withAlarmClock :: (AlarmClock -> UTCTime -> IO ()) -> (AlarmClock -> IO a) -> IO a
+withAlarmClock :: TimeScale t
+               => (AlarmClock t -> t -> IO ())
+               -> (AlarmClock t -> IO a) -> IO a
 withAlarmClock onWakeUp inner = bracket (newAlarmClock' onWakeUp) destroyAlarmClock inner
 
 {-| Make the 'AlarmClock' go off at (or shortly after) the given time.  This
 can be called more than once; in which case, the alarm will go off at the
 earliest given time. -}
-setAlarm :: AlarmClock -> UTCTime -> IO ()
+setAlarm :: TimeScale t => AlarmClock t -> t -> IO ()
 setAlarm ac t = atomically $ setAlarmSTM ac t
 
 {-| Make the 'AlarmClock' go off at (or shortly after) the given time.  This
 can be called more than once; in which case, the alarm will go off at the
 earliest given time. -}
-setAlarmSTM :: AlarmClock -> UTCTime -> STM ()
+setAlarmSTM :: TimeScale t => AlarmClock t -> t -> STM ()
 setAlarmSTM AlarmClock{..} t = modifyTVar' acNewSetting $ \case
   AlarmDestroyed -> AlarmDestroyed
   AlarmNotSet    -> AlarmSet t
-  AlarmSet t'    -> AlarmSet $! min t t'
+  AlarmSet t'    -> AlarmSet $! earlierOf t t'
 
 {-| Make the 'AlarmClock' go off right now. -}
-setAlarmNow :: AlarmClock -> IO ()
-setAlarmNow alarm = getCurrentTime >>= setAlarm alarm
+setAlarmNow :: TimeScale t => AlarmClock t -> IO ()
+setAlarmNow alarm = getAbsoluteTime >>= setAlarm alarm
 
 {-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
-isAlarmSet :: AlarmClock -> IO Bool
+isAlarmSet :: AlarmClock t -> IO Bool
 isAlarmSet = atomically . isAlarmSetSTM
 
 {-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
-isAlarmSetSTM :: AlarmClock -> STM Bool
+isAlarmSetSTM :: AlarmClock t -> STM Bool
 isAlarmSetSTM AlarmClock{..} = readTVar acNewSetting
   >>= \case { AlarmNotSet -> readTVar acIsSet; _ -> return True }
 
-data AlarmSetting = AlarmNotSet | AlarmSet UTCTime | AlarmDestroyed
+data AlarmSetting t = AlarmNotSet | AlarmSet t | AlarmDestroyed
 
 labelMyThread :: String -> IO ()
 labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
 
-runAlarmClock :: AlarmClock -> (UTCTime -> IO ()) -> IO ()
+runAlarmClock :: TimeScale t => AlarmClock t -> (t -> IO ()) -> IO ()
 runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   where
   loop = readNextSetting >>= go
@@ -134,9 +147,8 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   go (Just wakeUpTime) = wakeNoLaterThan wakeUpTime
 
   wakeNoLaterThan wakeUpTime = do
-    currentTime <- getCurrentTime
-    let dt = ceiling $ (1000000 *) $ diffUTCTime wakeUpTime currentTime
-    safeTimeout dt readNextSetting >>= \case
+    timeoutLength <- microsecondsDiff wakeUpTime <$> getAbsoluteTime
+    safeTimeout timeoutLength readNextSetting >>= \case
       Nothing -> actAndContinue
       Just newSetting -> go newSetting
 
@@ -147,5 +159,5 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
 
   actAndContinue = do
     atomically $ writeTVar acIsSet False
-    wakeUpAction =<< getCurrentTime
+    wakeUpAction =<< getAbsoluteTime
     loop

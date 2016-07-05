@@ -15,7 +15,7 @@ printWithTime s = do
   t <- getCurrentTime
   putStrLn $ printf "%-32s: %s" (show t) s
 
-alarmAction :: IORef Bool -> AlarmClock -> IO ()
+alarmAction :: IORef Bool -> AlarmClock UTCTime -> IO ()
 alarmAction v ac = do
   printWithTime "alarm went off"
   threadDelay 3000000
@@ -27,12 +27,12 @@ alarmAction v ac = do
   threadDelay 3000000
   printWithTime "alarm action finished"
 
-setAlarmLog :: AlarmClock -> UTCTime -> IO ()
+setAlarmLog :: AlarmClock UTCTime -> UTCTime -> IO ()
 setAlarmLog ac t = do
   printWithTime $ printf "alarm set for %s" $ show t
   setAlarm ac t
 
-setAlarmNowLog :: AlarmClock -> IO ()
+setAlarmNowLog :: AlarmClock UTCTime -> IO ()
 setAlarmNowLog ac = do
   printWithTime "alarm set for now"
   setAlarmNow ac
