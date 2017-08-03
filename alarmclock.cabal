@@ -1,5 +1,5 @@
 name:                alarmclock
-version:             0.4.0.2
+version:             0.4.0.3
 synopsis:            Wake up and perform an action at a certain time.
 description:         Wake up and perform an action at a certain time.
 homepage:            https://bitbucket.org/davecturner/alarmclock
@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Control.Concurrent.AlarmClock
   build-depends:
-      base >=4.8 && <4.10
+      base >=4.8 && <4.11
     , stm
     , async
     , time
