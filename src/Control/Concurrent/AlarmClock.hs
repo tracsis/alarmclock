@@ -47,7 +47,7 @@ import           Data.Time                  (UTCTime, diffUTCTime,
 import           GHC.Conc                   (labelThread, myThreadId)
 import           System.Clock               (Clock (Monotonic), TimeSpec,
                                              diffTimeSpec, getTime,
-                                             timeSpecAsNanoSecs)
+                                             toNanoSecs)
 
 class TimeScale t where
   getAbsoluteTime   :: IO t
@@ -66,7 +66,7 @@ instance TimeScale MonotonicTime where
   getAbsoluteTime = MonotonicTime <$> getTime Monotonic
   earlierOf       = min
   microsecondsDiff (MonotonicTime t1) (MonotonicTime t2)
-                  = (`div` 1000) $ timeSpecAsNanoSecs $ diffTimeSpec t1 t2
+                  = (`div` 1000) $ toNanoSecs $ diffTimeSpec t1 t2
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock t = AlarmClock

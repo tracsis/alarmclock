@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Control.Concurrent.AlarmClock
   build-depends:
-      base >=4.8 && <4.11
+      base >=4.8 && <4.12
     , stm
     , async
     , time
