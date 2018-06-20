@@ -31,7 +31,7 @@ module Control.Concurrent.AlarmClock
   , setAlarmNow
   , isAlarmSet
   , isAlarmSetSTM
-  , TimeScale(..)
+  , TimeScale
   , MonotonicTime(..)
   ) where
 
