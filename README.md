@@ -1,7 +1,7 @@
 See [this package's page on hackage](http://hackage.haskell.org/package/alarmclock).
 
-Device for running an action at (i.e. shortly after) a certain time, which
-can be used to implement things like time-based cache expiry.
+Device for running an action at (i.e. shortly after) a certain time, which can
+be used to implement things like time-based cache expiry.
 
 This implementation avoids the use of polling and leans on Haskell's scheduler
 to achieve low-latency without lots of computational overhead.
