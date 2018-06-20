@@ -1,5 +1,5 @@
 name:                alarmclock
-version:             0.4.0.4
+version:             0.5.0.0
 synopsis:            Wake up and perform an action at a certain time.
 description:         Wake up and perform an action at a certain time.
 homepage:            https://bitbucket.org/davecturner/alarmclock
@@ -7,7 +7,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              David Turner
 maintainer:          dave.c.turner@gmail.com
-copyright:           (c) David Turner 2014
+copyright:           (c) David Turner 2014-2018
 category:            Concurrency
 build-type:          Simple
 cabal-version:       >=1.10
