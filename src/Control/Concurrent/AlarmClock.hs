@@ -185,7 +185,7 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   wakeNoLaterThan wakeUpTime = do
     timeoutLength <- microsecondsDiff wakeUpTime <$> getAbsoluteTime
     safeTimeout timeoutLength readNextSetting >>= \case
-      Nothing -> actAndContinue
+      Nothing -> actAndContinue wakeUpTime
       Just newSetting -> go newSetting
 
   -- Times out immediately if the duration is nonpositive (unlike 'timeout' which waits forever)
@@ -193,7 +193,11 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
     | dt > 0    = timeout dt action
     | otherwise = return Nothing
 
-  actAndContinue = do
-    atomically $ writeTVar acIsSet False
-    wakeUpAction =<< getAbsoluteTime
-    loop
+  actAndContinue wakeUpTime = do
+    now <- getAbsoluteTime
+    if 0 < microsecondsDiff wakeUpTime now
+      then wakeNoLaterThan wakeUpTime
+      else do
+        atomically $ writeTVar acIsSet False
+        wakeUpAction now
+        loop
