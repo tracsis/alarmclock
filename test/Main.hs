@@ -2,7 +2,6 @@
 
 module Main (main) where
 
-import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.AlarmClock
 import Control.Exception

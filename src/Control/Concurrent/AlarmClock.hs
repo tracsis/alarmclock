@@ -169,7 +169,7 @@ labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
 runAlarmClock :: TimeScale t => AlarmClock t -> (t -> IO ()) -> IO ()
 runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   where
-  loop = readNextSetting >>= go
+  loop = readNextSetting >>= handleNewSetting
 
   readNextSetting = atomically $ readTVar acNewSetting >>= \case
     AlarmNotSet    -> retry
@@ -179,24 +179,15 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
       writeTVar acIsSet True
       return $ Just t
 
-  go Nothing           = return ()
-  go (Just wakeUpTime) = wakeNoLaterThan wakeUpTime
+  handleNewSetting Nothing           = return ()
+  handleNewSetting (Just wakeUpTime) = wakeShortlyAfter wakeUpTime
 
-  wakeNoLaterThan wakeUpTime = do
-    timeoutLength <- microsecondsDiff wakeUpTime <$> getAbsoluteTime
-    safeTimeout timeoutLength readNextSetting >>= \case
-      Nothing -> actAndContinue wakeUpTime
-      Just newSetting -> go newSetting
-
-  -- Times out immediately if the duration is nonpositive (unlike 'timeout' which waits forever)
-  safeTimeout dt action
-    | dt > 0    = timeout dt action
-    | otherwise = return Nothing
-
-  actAndContinue wakeUpTime = do
+  wakeShortlyAfter wakeUpTime = do
     now <- getAbsoluteTime
-    if 0 < microsecondsDiff wakeUpTime now
-      then wakeNoLaterThan wakeUpTime
+    let microsecondsTimeout = microsecondsDiff wakeUpTime now
+    if 0 < microsecondsTimeout
+      then maybe (wakeShortlyAfter wakeUpTime) handleNewSetting
+              =<< timeout microsecondsTimeout readNextSetting
       else do
         atomically $ writeTVar acIsSet False
         wakeUpAction now
