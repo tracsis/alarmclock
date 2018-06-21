@@ -35,59 +35,18 @@ module Control.Concurrent.AlarmClock
   , MonotonicTime(..)
   ) where
 
-import           Control.Concurrent.Async   (async, wait)
-import           Control.Concurrent.STM     (STM, TVar, atomically, modifyTVar',
-                                             newTVarIO, readTVar, retry,
-                                             writeTVar)
-import           Control.Concurrent.Timeout (timeout)
-import           Control.Exception          (bracket)
-import           Control.Monad.Fix          (mfix)
-import           Data.Time                  (UTCTime, diffUTCTime,
-                                             getCurrentTime)
-import           GHC.Conc                   (labelThread, myThreadId)
-import           System.Clock               (Clock (Monotonic), TimeSpec,
-                                             diffTimeSpec, getTime,
-                                             toNanoSecs)
+import           Control.Concurrent.Async                (async, wait)
+import           Control.Concurrent.STM                  (STM, TVar, atomically,
+                                                          modifyTVar',
+                                                          newTVarIO, readTVar,
+                                                          retry, writeTVar)
+import           Control.Concurrent.Timeout              (timeout)
+import           Control.Exception                       (bracket)
+import           Control.Monad.Fix                       (mfix)
+import           GHC.Conc                                (labelThread,
+                                                          myThreadId)
 
-{-| Abstraction that allows for a choice between the UTC timescale and a
-monotonic timescale, which differ in their handling of irregularities such as
-clock adjustments and leap seconds.
-
-Alarms set using the 'UTCTime' timescale wait for the system clock to pass the
-given time before going off, and account for the clock being adjusted
-backwards and for (positive) leap seconds while waiting. If the clock is set
-forwards, or a negative leap second occurs, then the alarm may go off later
-than expected by an amount that is roughly equal to the adjustment. It is
-possible to correct for this by setting the alarm again after the adjustment
-has occurred.
-
-The 'Monotonic' timescale cannot be so adjusted, which may be more suitable for
-some applications.
-
-Note that the timeliness of the alarm going off is very much on a "best effort"
-basis, and there are many environmental factors that could cause the alarm to
-go off later than expected.
-
--}
-
-class TimeScale t where
-  getAbsoluteTime   :: IO t
-  microsecondsDiff  :: t -> t -> Integer
-  earlierOf         :: t -> t -> t
-
-instance TimeScale UTCTime where
-  getAbsoluteTime        = getCurrentTime
-  earlierOf              = min
-  microsecondsDiff t1 t2 = ceiling $ (1000000 *) $ diffUTCTime t1 t2
-
-{-| Representation of system monotonic clock. -}
-newtype MonotonicTime = MonotonicTime TimeSpec deriving (Show, Eq, Ord)
-
-instance TimeScale MonotonicTime where
-  getAbsoluteTime = MonotonicTime <$> getTime Monotonic
-  earlierOf       = min
-  microsecondsDiff (MonotonicTime t1) (MonotonicTime t2)
-                  = (`div` 1000) $ toNanoSecs $ diffTimeSpec t1 t2
+import           Control.Concurrent.AlarmClock.TimeScale
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock t = AlarmClock

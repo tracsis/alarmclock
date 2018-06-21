@@ -2,12 +2,12 @@
 
 module Main (main) where
 
-import Control.Concurrent
-import Control.Concurrent.AlarmClock
-import Control.Exception
-import Data.IORef
-import Data.Time
-import Text.Printf
+import           Control.Concurrent
+import           Control.Concurrent.AlarmClock
+import           Control.Exception
+import           Data.IORef
+import           Data.Time
+import           Text.Printf
 
 printWithTime :: String -> IO ()
 printWithTime s = do

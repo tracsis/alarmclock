@@ -1,0 +1,36 @@
+name:                alarmclock
+version:             0.5.0.0
+license:             BSD3
+author:              "David Turner"
+maintainer:          "dave.c.turner@gmail.com"
+copyright:           "2014-2018 David Turner"
+homepage:            https://bitbucket.org/davecturner/alarmclock
+category:            Concurrency
+
+description:         Wake up and perform an action at a certain time.
+synopsis:            Wake up and perform an action at a certain time.
+
+description:         Please see the README on Bitbucket at <https://bitbucket.org/davecturner/alarmclock#readme>
+
+dependencies:
+- base >=4.8 && <4.12
+- stm
+- async
+- time
+- clock
+- unbounded-delays
+
+library:
+  source-dirs: src
+
+tests:
+  alarmclock-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - alarmclock
+    - hspec
