@@ -8,3 +8,4 @@ cabal.sandbox.config
 .cabal-sandbox
 .stack-work
 .DS_Store
+alarmclock.cabal
