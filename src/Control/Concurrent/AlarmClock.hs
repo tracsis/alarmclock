@@ -35,24 +35,28 @@ module Control.Concurrent.AlarmClock
   , MonotonicTime(..)
   ) where
 
-import           Control.Concurrent.Async                (async, wait)
+import           Control.Concurrent.Async                (async, wait, waitSTM,
+                                                          withAsync)
 import           Control.Concurrent.STM                  (STM, TVar, atomically,
                                                           modifyTVar',
-                                                          newTVarIO, readTVar,
-                                                          retry, writeTVar)
-import           Control.Concurrent.Timeout              (timeout)
+                                                          newTVarIO, orElse,
+                                                          readTVar, retry,
+                                                          writeTVar)
+import           Control.Concurrent.Thread.Delay         (delay)
 import           Control.Exception                       (bracket)
 import           Control.Monad.Fix                       (mfix)
 import           GHC.Conc                                (labelThread,
                                                           myThreadId)
+import Control.Monad (join)
 
 import           Control.Concurrent.AlarmClock.TimeScale
+
+data AlarmSetting t = AlarmNotSet | AlarmSet t | AlarmDestroyed
 
 {-| An 'AlarmClock' is a device for running an action at (or shortly after) a certain time. -}
 data AlarmClock t = AlarmClock
   { acWaitForExit :: IO ()
   , acNewSetting  :: TVar (AlarmSetting t)
-  , acIsSet       :: TVar Bool
   }
 
 {-| Create a new 'AlarmClock' that runs the given action. Initially, there is
@@ -78,7 +82,7 @@ newAlarmClock'
   -> IO (AlarmClock t)
 newAlarmClock' onWakeUp = mfix $ \ac -> do
   acAsync <- async $ runAlarmClock ac (onWakeUp ac)
-  AlarmClock (wait acAsync) <$> newTVarIO AlarmNotSet <*> newTVarIO False
+  AlarmClock (wait acAsync) <$> newTVarIO AlarmNotSet
 
 {-| Destroy the 'AlarmClock' so no further alarms will occur. If the alarm is currently going off
 then this will block until the action is finished. -}
@@ -103,9 +107,9 @@ can be called more than once; in which case, the alarm will go off at the
 earliest given time. -}
 setAlarmSTM :: TimeScale t => AlarmClock t -> t -> STM ()
 setAlarmSTM AlarmClock{..} t = modifyTVar' acNewSetting $ \case
-  AlarmDestroyed -> AlarmDestroyed
   AlarmNotSet    -> AlarmSet t
   AlarmSet t'    -> AlarmSet $! earlierOf t t'
+  AlarmDestroyed -> AlarmDestroyed
 
 {-| Make the 'AlarmClock' go off right now. -}
 setAlarmNow :: TimeScale t => AlarmClock t -> IO ()
@@ -118,9 +122,7 @@ isAlarmSet = atomically . isAlarmSetSTM
 {-| Is the alarm set - i.e. will it go off at some point in the future even if `setAlarm` is not called? -}
 isAlarmSetSTM :: AlarmClock t -> STM Bool
 isAlarmSetSTM AlarmClock{..} = readTVar acNewSetting
-  >>= \case { AlarmNotSet -> readTVar acIsSet; _ -> return True }
-
-data AlarmSetting t = AlarmNotSet | AlarmSet t | AlarmDestroyed
+  >>= \case { AlarmSet _ -> return True; _ -> return False }
 
 labelMyThread :: String -> IO ()
 labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
@@ -128,26 +130,29 @@ labelMyThread threadLabel = myThreadId >>= flip labelThread threadLabel
 runAlarmClock :: TimeScale t => AlarmClock t -> (t -> IO ()) -> IO ()
 runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
   where
-  loop = readNextSetting >>= handleNewSetting
+  loop :: IO ()
+  loop = join $ atomically whenNotSet
 
-  readNextSetting = atomically $ readTVar acNewSetting >>= \case
-    AlarmNotSet    -> retry
-    AlarmDestroyed -> return Nothing
-    AlarmSet t     -> do
-      writeTVar acNewSetting AlarmNotSet
-      writeTVar acIsSet True
-      return $ Just t
+  whenNotSet :: STM (IO ())
+  whenNotSet = readTVar acNewSetting >>= \case
+    AlarmNotSet         -> retry
+    AlarmDestroyed      -> return $ return ()
+    AlarmSet wakeUpTime -> return $ whenSet wakeUpTime
 
-  handleNewSetting Nothing           = return ()
-  handleNewSetting (Just wakeUpTime) = wakeShortlyAfter wakeUpTime
-
-  wakeShortlyAfter wakeUpTime = do
+  whenSet wakeUpTime = do
     now <- getAbsoluteTime
     let microsecondsTimeout = microsecondsDiff wakeUpTime now
     if 0 < microsecondsTimeout
-      then maybe (wakeShortlyAfter wakeUpTime) handleNewSetting
-              =<< timeout microsecondsTimeout readNextSetting
+      then join $ withAsync (delay microsecondsTimeout) $ \a -> atomically $
+                      waitSTM a >> return (whenSet wakeUpTime)
+                    `orElse`
+                      (readTVar acNewSetting >>= \case
+                          AlarmSet wakeUpTime' | earlierOf wakeUpTime' wakeUpTime /= wakeUpTime -> return $ whenSet wakeUpTime'
+                          AlarmDestroyed                                                        -> return $ return ()
+                          _                                                                     -> retry
+                      )
+
       else do
-        atomically $ writeTVar acIsSet False
+        atomically $ writeTVar acNewSetting AlarmNotSet
         wakeUpAction now
         loop

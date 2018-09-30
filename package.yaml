@@ -20,6 +20,9 @@ dependencies:
 - clock
 - unbounded-delays
 
+ghc-options:
+- -Wall -Werror
+
 library:
   source-dirs: src
 

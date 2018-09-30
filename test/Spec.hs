@@ -50,6 +50,10 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
         return (modifyIORef logVar . (:), reverse <$> readIORef logVar)
 
   describe "AlarmClock" $ do
+    let waitUntilUnset ac = do
+          atomically $ guard . not =<< isAlarmSetSTM ac
+          threadDelay 50000 -- alarm becomes unset before action has completed
+
     it "wakes up immediately on setAlarmNow" $ do
       (writeLog, readLog) <- makeLog
       withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
@@ -126,7 +130,7 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
           setAlarmSTM ac $ addUTCTime 0.1 now
           guard =<< isAlarmSetSTM ac
         writeLog "alarm is set"
-        atomically $ guard . not =<< isAlarmSetSTM ac
+        waitUntilUnset ac
         writeLog "alarm now not set again"
       readLog `shouldReturn`
         [ "alarm is set"
@@ -140,11 +144,11 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
         startTime <- getCurrentTime
         setAlarm ac $ addUTCTime 0.1 startTime
         writeLog "alarm is set"
-        atomically $ guard . not =<< isAlarmSetSTM ac
+        waitUntilUnset ac
         writeLog "alarm is not set"
         setAlarm ac $ addUTCTime 0.2 startTime
         writeLog "alarm is set"
-        atomically $ guard . not =<< isAlarmSetSTM ac
+        waitUntilUnset ac
         writeLog "alarm is not set"
       readLog `shouldReturn`
         [ "alarm is set"
@@ -161,7 +165,7 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
         startTime <- getCurrentTime
         setAlarm ac $ addUTCTime (-0.1) startTime
         writeLog "alarm is set"
-        atomically $ guard . not =<< isAlarmSetSTM ac
+        waitUntilUnset ac
         writeLog "done"
         endTime <- getCurrentTime
         diffUTCTime endTime startTime `shouldSatisfy` (\t -> 0.0 <= t && t < 0.1)

@@ -30,7 +30,7 @@ go off later than expected.
 
 -}
 
-class TimeScale t where
+class Eq t => TimeScale t where
   getAbsoluteTime   :: IO t
   microsecondsDiff  :: t -> t -> Integer
   earlierOf         :: t -> t -> t
