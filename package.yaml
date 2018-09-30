@@ -21,7 +21,7 @@ dependencies:
 - unbounded-delays
 
 ghc-options:
-- -Wall -Werror
+- -Wall
 
 library:
   source-dirs: src
