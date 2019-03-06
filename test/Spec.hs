@@ -12,6 +12,7 @@ import           Control.Monad
 import           Data.IORef
 import           Data.Proxy
 import           Data.Time
+import           System.Clock
 
 main :: IO ()
 main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
@@ -54,145 +55,154 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
           atomically $ guard . not =<< isAlarmSetSTM ac
           threadDelay 50000 -- alarm becomes unset before action has completed
 
-    it "wakes up immediately on setAlarmNow" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        setAlarmNow (ac :: AlarmClock UTCTime)
-        threadDelay 100000
-      readLog `shouldReturn` ["alarm went off"]
+        alarmClockSpec :: (TimeScale t, Eq t, Show t)
+          => (AlarmClock t -> AlarmClock t) -> (Double -> t -> t) -> Spec
+        alarmClockSpec acid addTime = do
 
-    it "wakes up a bit later using setAlarm" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        setAlarm ac . addUTCTime 0.2 =<< getCurrentTime
-        writeLog "waiting"
-        threadDelay 100000
-        writeLog "still waiting"
-        threadDelay 200000
-        writeLog "should have gone off by now"
-      readLog `shouldReturn`
-        [ "waiting"
-        , "still waiting"
-        , "alarm went off"
-        , "should have gone off by now"
-        ]
+          it "wakes up immediately on setAlarmNow" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              setAlarmNow $ acid ac
+              threadDelay 100000
+            readLog `shouldReturn` ["alarm went off"]
 
-    it "wakes up at the earliest set time and no others" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        setAlarm ac . addUTCTime 0.3 =<< getCurrentTime
-        setAlarm ac . addUTCTime 0.2 =<< getCurrentTime
-        writeLog "waiting"
-        threadDelay 100000
-        writeLog "still waiting"
-        threadDelay 300000
-        writeLog "should have gone off once by now"
-      readLog `shouldReturn`
-        [ "waiting"
-        , "still waiting"
-        , "alarm went off"
-        , "should have gone off once by now"
-        ]
+          it "wakes up a bit later using setAlarm" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              setAlarm ac . addTime 0.2 =<< getAbsoluteTime
+              writeLog "waiting"
+              threadDelay 100000
+              writeLog "still waiting"
+              threadDelay 200000
+              writeLog "should have gone off by now"
+            readLog `shouldReturn`
+              [ "waiting"
+              , "still waiting"
+              , "alarm went off"
+              , "should have gone off by now"
+              ]
 
-    it "reports whether it is set or not" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        let logIfSet = do
-              currentlySet <- isAlarmSet ac
-              writeLog $ if currentlySet then "alarm is set" else "alarm is not set"
-        logIfSet
-        setAlarm ac . addUTCTime 0.2 =<< getCurrentTime
-        logIfSet
-        writeLog "waiting"
-        threadDelay 100000
-        writeLog "still waiting"
-        logIfSet
-        threadDelay 200000
-        writeLog "should have gone off by now"
-        logIfSet
-      readLog `shouldReturn`
-        [ "alarm is not set"
-        , "alarm is set"
-        , "waiting"
-        , "still waiting"
-        , "alarm is set"
-        , "alarm went off"
-        , "should have gone off by now"
-        , "alarm is not set"
-        ]
+          it "wakes up at the earliest set time and no others" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              setAlarm ac . addTime 0.3 =<< getAbsoluteTime
+              setAlarm ac . addTime 0.2 =<< getAbsoluteTime
+              writeLog "waiting"
+              threadDelay 100000
+              writeLog "still waiting"
+              threadDelay 300000
+              writeLog "should have gone off once by now"
+            readLog `shouldReturn`
+              [ "waiting"
+              , "still waiting"
+              , "alarm went off"
+              , "should have gone off once by now"
+              ]
 
-    it "works within the STM monad" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        now <- getCurrentTime
-        atomically $ do
-          guard . not =<< isAlarmSetSTM ac
-          setAlarmSTM ac $ addUTCTime 0.1 now
-          guard =<< isAlarmSetSTM ac
-        writeLog "alarm is set"
-        waitUntilUnset ac
-        writeLog "alarm now not set again"
-      readLog `shouldReturn`
-        [ "alarm is set"
-        , "alarm went off"
-        , "alarm now not set again"
-        ]
+          it "reports whether it is set or not" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              let logIfSet = do
+                    currentlySet <- isAlarmSet ac
+                    writeLog $ if currentlySet then "alarm is set" else "alarm is not set"
+              logIfSet
+              setAlarm ac . addTime 0.2 =<< getAbsoluteTime
+              logIfSet
+              writeLog "waiting"
+              threadDelay 100000
+              writeLog "still waiting"
+              logIfSet
+              threadDelay 200000
+              writeLog "should have gone off by now"
+              logIfSet
+            readLog `shouldReturn`
+              [ "alarm is not set"
+              , "alarm is set"
+              , "waiting"
+              , "still waiting"
+              , "alarm is set"
+              , "alarm went off"
+              , "should have gone off by now"
+              , "alarm is not set"
+              ]
 
-    it "can be set again once it goes off" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        startTime <- getCurrentTime
-        setAlarm ac $ addUTCTime 0.1 startTime
-        writeLog "alarm is set"
-        waitUntilUnset ac
-        writeLog "alarm is not set"
-        setAlarm ac $ addUTCTime 0.2 startTime
-        writeLog "alarm is set"
-        waitUntilUnset ac
-        writeLog "alarm is not set"
-      readLog `shouldReturn`
-        [ "alarm is set"
-        , "alarm went off"
-        , "alarm is not set"
-        , "alarm is set"
-        , "alarm went off"
-        , "alarm is not set"
-        ]
+          it "works within the STM monad" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              now <- getAbsoluteTime
+              atomically $ do
+                guard . not =<< isAlarmSetSTM ac
+                setAlarmSTM ac $ addTime 0.1 now
+                guard =<< isAlarmSetSTM ac
+              writeLog "alarm is set"
+              waitUntilUnset ac
+              writeLog "alarm now not set again"
+            readLog `shouldReturn`
+              [ "alarm is set"
+              , "alarm went off"
+              , "alarm now not set again"
+              ]
 
-    it "goes off immediately if set to go off in the past" $ do
-      (writeLog, readLog) <- makeLog
-      withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-        startTime <- getCurrentTime
-        setAlarm ac $ addUTCTime (-0.1) startTime
-        writeLog "alarm is set"
-        waitUntilUnset ac
-        writeLog "done"
-        endTime <- getCurrentTime
-        diffUTCTime endTime startTime `shouldSatisfy` (\t -> 0.0 <= t && t < 0.1)
-      readLog `shouldReturn`
-        [ "alarm is set"
-        , "alarm went off"
-        , "done"
-        ]
+          it "can be set again once it goes off" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              startTime <- getAbsoluteTime
+              setAlarm ac $ addTime 0.1 startTime
+              writeLog "alarm is set"
+              waitUntilUnset ac
+              writeLog "alarm is not set"
+              setAlarm ac $ addTime 0.2 startTime
+              writeLog "alarm is set"
+              waitUntilUnset ac
+              writeLog "alarm is not set"
+            readLog `shouldReturn`
+              [ "alarm is set"
+              , "alarm went off"
+              , "alarm is not set"
+              , "alarm is set"
+              , "alarm went off"
+              , "alarm is not set"
+              ]
 
-    it "blocks destruction if the alarm is going off" $ do
-      (writeLog, readLog) <- makeLog
-      let alarmAction _ _ = do
-            writeLog "alarm going off"
-            threadDelay 200000
-            writeLog "alarm finished going off"
+          it "goes off immediately if set to go off in the past" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
+              startTime <- getCurrentTime
+              now <- getAbsoluteTime
+              setAlarm ac $ addTime (-0.1) now
+              writeLog "alarm is set"
+              waitUntilUnset ac
+              writeLog "done"
+              endTime <- getCurrentTime
+              diffUTCTime endTime startTime `shouldSatisfy` (\t -> 0.0 <= t && t < 0.1)
+            readLog `shouldReturn`
+              [ "alarm is set"
+              , "alarm went off"
+              , "done"
+              ]
 
-      withAlarmClock alarmAction $ \ac -> do
-        setAlarmNow (ac :: AlarmClock UTCTime)
-        threadDelay 100000
-        writeLog "destroying alarm clock"
-      writeLog "alarm clock destroyed"
-      readLog `shouldReturn`
-        [ "alarm going off"
-        , "destroying alarm clock"
-        , "alarm finished going off"
-        , "alarm clock destroyed"
-        ]
+          it "blocks destruction if the alarm is going off" $ do
+            (writeLog, readLog) <- makeLog
+            let alarmAction _ _ = do
+                  writeLog "alarm going off"
+                  threadDelay 200000
+                  writeLog "alarm finished going off"
+
+            withAlarmClock alarmAction $ \ac -> do
+              setAlarmNow $ acid ac
+              threadDelay 100000
+              writeLog "destroying alarm clock"
+            writeLog "alarm clock destroyed"
+            readLog `shouldReturn`
+              [ "alarm going off"
+              , "destroying alarm clock"
+              , "alarm finished going off"
+              , "alarm clock destroyed"
+              ]
+
+    describe "UTCTime"       $ alarmClockSpec id $ addUTCTime . fromRational . toRational
+    describe "MonotonicTime" $ alarmClockSpec id $ \dts (MonotonicTime ts) ->
+      MonotonicTime $ fromNanoSecs $ toNanoSecs ts + floor (dts * 1e9)
 
     it "re-checks the time before going off" $
       withAlarmClock (\_ _ -> return ()) $ \ac -> do

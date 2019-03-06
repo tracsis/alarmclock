@@ -44,10 +44,10 @@ import           Control.Concurrent.STM                  (STM, TVar, atomically,
                                                           writeTVar)
 import           Control.Concurrent.Thread.Delay         (delay)
 import           Control.Exception                       (bracket)
+import           Control.Monad                           (join)
 import           Control.Monad.Fix                       (mfix)
 import           GHC.Conc                                (labelThread,
                                                           myThreadId)
-import Control.Monad (join)
 
 import           Control.Concurrent.AlarmClock.TimeScale
 
