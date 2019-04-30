@@ -85,18 +85,21 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
           it "wakes up at the earliest set time and no others" $ do
             (writeLog, readLog) <- makeLog
             withAlarmClock (\_ _ -> writeLog "alarm went off") $ \ac -> do
-              setAlarm ac . addTime 0.3 =<< getAbsoluteTime
+              setAlarm ac . addTime 0.4 =<< getAbsoluteTime
               setAlarm ac . addTime 0.2 =<< getAbsoluteTime
               writeLog "waiting"
               threadDelay 100000
               writeLog "still waiting"
-              threadDelay 300000
+              threadDelay 200000
               writeLog "should have gone off once by now"
+              threadDelay 200000
+              writeLog "should not have gone off again"
             readLog `shouldReturn`
               [ "waiting"
               , "still waiting"
               , "alarm went off"
               , "should have gone off once by now"
+              , "should not have gone off again"
               ]
 
           it "reports whether it is set or not" $ do
