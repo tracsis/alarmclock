@@ -7,7 +7,6 @@ copyright:           "2014-2018 David Turner"
 homepage:            https://bitbucket.org/davecturner/alarmclock
 category:            Concurrency
 
-description:         Wake up and perform an action at a certain time.
 synopsis:            Wake up and perform an action at a certain time.
 
 description:         Please see the README on Bitbucket at <https://bitbucket.org/davecturner/alarmclock#readme>
