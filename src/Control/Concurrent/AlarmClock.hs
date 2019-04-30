@@ -153,6 +153,8 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
                       )
 
       else do
-        atomically $ writeTVar acNewSetting AlarmNotSet
+        atomically $ modifyTVar' acNewSetting $ \case
+          AlarmSet _ -> AlarmNotSet
+          setting    -> setting
         wakeUpAction now
         loop

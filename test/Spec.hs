@@ -228,6 +228,10 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
               , "alarm should have gone off after longer time"
               ]
 
+          it "doesn't block destruction even in a tight loop" $ withAlarmClock (\ac t -> setAlarm ac t) $ \ac -> do
+            setAlarmNow $ acid ac
+            threadDelay 100000
+
     describe "UTCTime"       $ alarmClockSpec id $ addUTCTime . fromRational . toRational
     describe "MonotonicTime" $ alarmClockSpec id $ \dts (MonotonicTime ts) ->
       MonotonicTime $ fromNanoSecs $ toNanoSecs ts + floor (dts * 1e9)
