@@ -144,7 +144,7 @@ runAlarmClock AlarmClock{..} wakeUpAction = labelMyThread "alarmclock" >> loop
     let microsecondsTimeout = microsecondsDiff wakeUpTime now
     if 0 < microsecondsTimeout
       then join $ withAsync (delay microsecondsTimeout) $ \a -> atomically $
-                      waitSTM a >> return (whenSet wakeUpTime)
+                      (waitSTM a >> return (whenSet wakeUpTime))
                     `orElse`
                       (readTVar acNewSetting >>= \case
                           AlarmSet wakeUpTime' | earlierOf wakeUpTime' wakeUpTime /= wakeUpTime -> return $ whenSet wakeUpTime'

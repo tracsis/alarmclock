@@ -200,6 +200,34 @@ main = hspec $ describe "Control.Concurrent.AlarmClock" $ do
               , "alarm clock destroyed"
               ]
 
+          it "successfully destroys even if wakeup action tries to set again" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\ac t -> writeLog "alarm went off" >> setAlarm ac (addTime 0.2 t)) $ \ac -> do
+              setAlarmNow $ acid ac
+              threadDelay 100000
+            threadDelay 300000
+            readLog `shouldReturn` ["alarm went off"]
+
+          it "picks the shorter time if a longer time is set in the wakeup" $ do
+            (writeLog, readLog) <- makeLog
+            withAlarmClock (\ac t -> writeLog "alarm went off" >> setAlarm ac (addTime 0.5 t)) $ \ac -> do
+              setAlarmNow $ acid ac
+              threadDelay 100000
+              setAlarm ac . addTime 0.1 =<< getAbsoluteTime
+              writeLog "set a shorter time"
+              threadDelay 200000
+              writeLog "alarm should have gone off after shorter time"
+              threadDelay 500000
+              writeLog "alarm should have gone off after longer time"
+            readLog `shouldReturn`
+              [ "alarm went off"
+              , "set a shorter time"
+              , "alarm went off"
+              , "alarm should have gone off after shorter time"
+              , "alarm went off"
+              , "alarm should have gone off after longer time"
+              ]
+
     describe "UTCTime"       $ alarmClockSpec id $ addUTCTime . fromRational . toRational
     describe "MonotonicTime" $ alarmClockSpec id $ \dts (MonotonicTime ts) ->
       MonotonicTime $ fromNanoSecs $ toNanoSecs ts + floor (dts * 1e9)
