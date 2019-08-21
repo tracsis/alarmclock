@@ -4,12 +4,12 @@ license:             BSD3
 author:              "David Turner"
 maintainer:          "dave.c.turner@gmail.com"
 copyright:           "2014-2018 David Turner"
-homepage:            https://bitbucket.org/davecturner/alarmclock
+homepage:            https://github.com/DaveCTurner/alarmclock
 category:            Concurrency
 
 synopsis:            Wake up and perform an action at a certain time.
 
-description:         Please see the README on Bitbucket at <https://bitbucket.org/davecturner/alarmclock#readme>
+description:         Please see the README at <https://github.com/DaveCTurner/alarmclock/blob/master/README.md>
 
 dependencies:
 - base >=4.8 && <4.13
