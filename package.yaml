@@ -1,9 +1,9 @@
 name:                alarmclock
-version:             0.7.0.1
+version:             0.7.0.2
 license:             BSD3
 author:              "David Turner"
 maintainer:          "dave.c.turner@gmail.com"
-copyright:           "2014-2018 David Turner"
+copyright:           "2014-2019 David Turner"
 homepage:            https://github.com/DaveCTurner/alarmclock
 category:            Concurrency
 
