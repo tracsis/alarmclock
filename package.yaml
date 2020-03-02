@@ -12,12 +12,12 @@ synopsis:            Wake up and perform an action at a certain time.
 description:         Please see the README at <https://github.com/DaveCTurner/alarmclock/blob/master/README.md>
 
 dependencies:
-- base >=4.8 && <4.14
-- stm
-- async
-- time
-- clock
-- unbounded-delays
+- base             >= 4.8.0 && < 4.14
+- async            >= 2.1.1 && < 2.3
+- stm              >= 2.4.4 && < 2.6
+- clock            >= 0.7.0 && < 0.9
+- time             >= 1.5.0 && < 1.10
+- unbounded-delays >= 0.1.1 && < 0.2
 
 ghc-options:
 - -Wall
