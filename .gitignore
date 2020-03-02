@@ -1,0 +1,10 @@
+.*\.swp
+.*\.tix
+.*\.dat
+dist
+cabal-dev
+cabal.sandbox.config
+.cabal-sandbox
+.stack-work
+.DS_Store
+alarmclock.cabal
